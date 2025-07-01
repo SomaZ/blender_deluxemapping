@@ -1021,6 +1021,8 @@ void RE_bake_normal_world_to_world(const BakePixel pixel_array[],
     offset = i * depth;
     copy_v3_v3(nor, &result[offset]);
 
+    normalize_v3(nor);
+
     /* save back the values */
     normal_compress(&result[offset], nor, normal_swizzle);
   }

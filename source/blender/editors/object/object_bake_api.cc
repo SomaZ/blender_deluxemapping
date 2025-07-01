@@ -1796,6 +1796,17 @@ static int bake(const BakeAPIRender *bkr,
         break;
     }
   }
+  // compress deluxemaps to range [0, 1]
+  else if (ok && bkr->pass_type == SCE_PASS_DIFFUSE_COLOR) {
+    if ((bkr->pass_filter & R_BAKE_PASS_FILTER_COLOR) != 0) {
+      eBakeNormalSwizzle swizzle[3] = { R_BAKE_POSX, R_BAKE_POSY, R_BAKE_POSZ };
+      RE_bake_normal_world_to_world(pixel_array_low,
+        targets.pixels_num,
+        targets.channels_num,
+        targets.result,
+        swizzle);
+    }
+  }
 
   if (!ok) {
     BKE_reportf(reports, RPT_ERROR, "Problem baking object \"%s\"", ob_low->id.name + 2);
