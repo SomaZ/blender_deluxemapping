@@ -223,7 +223,7 @@ KERNEL_STRUCT_MEMBER(integrator, int, use_guiding_direct_light)
 KERNEL_STRUCT_MEMBER(integrator, int, use_guiding_mis_weights)
 
 /* Padding. */
-KERNEL_STRUCT_MEMBER(integrator, int, pad1)
+KERNEL_STRUCT_MEMBER(integrator, int, make_deluxe)
 KERNEL_STRUCT_MEMBER(integrator, int, pad2)
 KERNEL_STRUCT_MEMBER(integrator, int, pad3)
 KERNEL_STRUCT_END(KernelIntegrator)

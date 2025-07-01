@@ -102,6 +102,8 @@ NODE_DEFINE(Integrator)
   SOCKET_BOOLEAN(use_transmission, "Use Transmission", true);
   SOCKET_BOOLEAN(use_emission, "Use Emission", true);
 
+  SOCKET_BOOLEAN(make_deluxe, "Make deluxemap", false);
+
   SOCKET_INT(seed, "Seed", 0);
   SOCKET_FLOAT(sample_clamp_direct, "Sample Clamp Direct", 0.0f);
   SOCKET_FLOAT(sample_clamp_indirect, "Sample Clamp Indirect", 10.0f);
@@ -249,6 +251,9 @@ void Integrator::device_update(Device *device, DeviceScene *dscene, Scene *scene
   if (!use_emission) {
     kintegrator->filter_closures |= FILTER_CLOSURE_EMISSION;
   }
+
+  kintegrator->make_deluxe = make_deluxe;
+
   if (scene->bake_manager->get_baking()) {
     /* Baking does not need to trace through transparency, we only want to bake
      * the object itself. */

@@ -68,6 +68,8 @@ class Integrator : public Node {
   NODE_SOCKET_API(bool, use_transmission);
   NODE_SOCKET_API(bool, use_emission);
 
+  NODE_SOCKET_API(bool, make_deluxe);
+
   NODE_SOCKET_API(int, seed)
 
   NODE_SOCKET_API(float, sample_clamp_direct)

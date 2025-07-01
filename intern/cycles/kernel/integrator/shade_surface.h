@@ -236,6 +236,9 @@ integrate_direct_light_shadow_init_common(KernelGlobals kg,
   INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, sample) = INTEGRATOR_STATE(
       state, path, sample);
 
+  INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, rayD) = INTEGRATOR_STATE(
+    state, path, rayD);
+
   INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, transparent_bounce) = INTEGRATOR_STATE(
       state, path, transparent_bounce);
   INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, glossy_bounce) = INTEGRATOR_STATE(
@@ -413,21 +416,25 @@ ccl_device
   if (kernel_data.kernel_features & KERNEL_FEATURE_LIGHT_PASSES) {
     PackedSpectrum pass_diffuse_weight;
     PackedSpectrum pass_glossy_weight;
+    packed_float3 rayD;
 
     if (shadow_flag & PATH_RAY_ANY_PASS) {
       /* Indirect bounce, use weights from earlier surface or volume bounce. */
       pass_diffuse_weight = INTEGRATOR_STATE(state, path, pass_diffuse_weight);
       pass_glossy_weight = INTEGRATOR_STATE(state, path, pass_glossy_weight);
+      rayD = INTEGRATOR_STATE(state, path, rayD);
     }
     else {
       /* Direct light, use BSDFs at this bounce. */
       shadow_flag |= PATH_RAY_SURFACE_PASS;
       pass_diffuse_weight = PackedSpectrum(bsdf_eval_pass_diffuse_weight(&bsdf_eval));
       pass_glossy_weight = PackedSpectrum(bsdf_eval_pass_glossy_weight(&bsdf_eval));
+      rayD = packed_float3(ls.D);
     }
 
     INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, pass_diffuse_weight) = pass_diffuse_weight;
     INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, pass_glossy_weight) = pass_glossy_weight;
+    INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, rayD) = rayD;
   }
 
   INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, flag) = shadow_flag;
@@ -538,6 +545,8 @@ ccl_device_forceinline int integrate_surface_bsdf_bssrdf_bounce(
           &bsdf_eval);
       INTEGRATOR_STATE_WRITE(state, path, pass_glossy_weight) = bsdf_eval_pass_glossy_weight(
           &bsdf_eval);
+      INTEGRATOR_STATE_WRITE(state, path, rayD) = packed_float3(normalize(bsdf_wo));
+
     }
   }
 

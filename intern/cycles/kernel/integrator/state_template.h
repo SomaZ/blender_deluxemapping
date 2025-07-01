@@ -50,6 +50,8 @@ KERNEL_STRUCT_MEMBER(path, packed_float3, mis_origin_n, KERNEL_FEATURE_PATH_TRAC
 KERNEL_STRUCT_MEMBER(path, float, min_ray_pdf, KERNEL_FEATURE_PATH_TRACING)
 /* Continuation probability for path termination. */
 KERNEL_STRUCT_MEMBER(path, float, continuation_probability, KERNEL_FEATURE_PATH_TRACING)
+/* deluxemapping */
+KERNEL_STRUCT_MEMBER(path, packed_float3, rayD, KERNEL_FEATURE_PATH_TRACING)
 /* Throughput. */
 KERNEL_STRUCT_MEMBER(path, PackedSpectrum, throughput, KERNEL_FEATURE_PATH_TRACING)
 /* Factor to multiple with throughput to get remove any guiding PDFS.

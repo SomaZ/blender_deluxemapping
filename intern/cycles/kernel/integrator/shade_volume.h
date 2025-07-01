@@ -829,6 +829,8 @@ ccl_device_forceinline void integrate_volume_direct_light(
       /* Indirect bounce, use weights from earlier surface or volume bounce. */
       pass_diffuse_weight = INTEGRATOR_STATE(state, path, pass_diffuse_weight);
       pass_glossy_weight = INTEGRATOR_STATE(state, path, pass_glossy_weight);
+      INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, rayD) = INTEGRATOR_STATE(
+        state, path, rayD);
     }
     else {
       /* Direct light, no diffuse/glossy distinction needed for volumes. */

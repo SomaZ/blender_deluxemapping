@@ -27,6 +27,8 @@ KERNEL_STRUCT_MEMBER(shadow_path, uint16_t, transmission_bounce, KERNEL_FEATURE_
 KERNEL_STRUCT_MEMBER(shadow_path, uint16_t, queued_kernel, KERNEL_FEATURE_PATH_TRACING)
 /* enum PathRayFlag */
 KERNEL_STRUCT_MEMBER(shadow_path, uint32_t, flag, KERNEL_FEATURE_PATH_TRACING)
+/* deluxemapping */
+KERNEL_STRUCT_MEMBER(shadow_path, packed_float3, rayD, KERNEL_FEATURE_PATH_TRACING)
 /* Throughput. */
 KERNEL_STRUCT_MEMBER(shadow_path, PackedSpectrum, throughput, KERNEL_FEATURE_PATH_TRACING)
 /* Throughput for shadow pass. */

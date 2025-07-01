@@ -442,6 +442,11 @@ ccl_device_inline void film_write_emission_or_background_pass(
                         kernel_data.film.pass_diffuse_indirect;
       if (pass_offset != PASS_UNUSED) {
         contribution *= diffuse_weight;
+        if (kernel_data.integrator.make_deluxe)
+        {
+          contribution = float3(INTEGRATOR_STATE(state, path, rayD)) * average(contribution);
+
+        }
       }
     }
     else if (path_flag & PATH_RAY_VOLUME_PASS) {
@@ -540,6 +545,10 @@ ccl_device_inline void film_write_direct_light(KernelGlobals kg,
                           kernel_data.film.pass_diffuse_indirect;
         if (pass_offset != PASS_UNUSED) {
           contribution *= diffuse_weight;
+          if (kernel_data.integrator.make_deluxe)
+          {
+            contribution = float3(INTEGRATOR_STATE(state, shadow_path, rayD)) * average(contribution);
+          }
         }
       }
       else if (path_flag & PATH_RAY_VOLUME_PASS) {

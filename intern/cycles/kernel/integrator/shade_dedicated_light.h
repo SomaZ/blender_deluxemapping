@@ -215,6 +215,8 @@ ccl_device void shadow_linking_shade(KernelGlobals kg,
         state, path, pass_diffuse_weight);
     INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, pass_glossy_weight) = INTEGRATOR_STATE(
         state, path, pass_glossy_weight);
+    INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, rayD) = INTEGRATOR_STATE(
+      state, path, rayD);
   }
 
   INTEGRATOR_STATE_WRITE(shadow_state, shadow_path, flag) = shadow_flag;

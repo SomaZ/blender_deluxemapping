@@ -536,6 +536,8 @@ static bool bake_setup_pass(Scene *scene, const string &bake_type, const int bak
   bool use_indirect_light = false;
   bool include_albedo = false;
 
+  integrator->set_make_deluxe(false);
+
   /* Data passes. */
   if (bake_type == "POSITION") {
     type = PASS_POSITION;
@@ -603,12 +605,15 @@ static bool bake_setup_pass(Scene *scene, const string &bake_type, const int bak
     if (bake_type == "DIFFUSE") {
       if (filter_direct && filter_indirect) {
         type = PASS_DIFFUSE;
+        integrator->set_make_deluxe(include_albedo);
       }
       else if (filter_direct) {
         type = PASS_DIFFUSE_DIRECT;
+        integrator->set_make_deluxe(include_albedo);
       }
       else if (filter_indirect) {
         type = PASS_DIFFUSE_INDIRECT;
+        integrator->set_make_deluxe(include_albedo);
       }
       else {
         type = PASS_DIFFUSE_COLOR;

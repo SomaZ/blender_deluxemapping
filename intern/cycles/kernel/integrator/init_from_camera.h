@@ -104,6 +104,8 @@ ccl_device bool integrator_init_from_camera(KernelGlobals kg,
     integrator_path_init(kg, state, DEVICE_KERNEL_INTEGRATOR_INTERSECT_CLOSEST);
   }
 
+  INTEGRATOR_STATE_WRITE(state, path, rayD) = packed_float3(zero_float3());
+
   return true;
 }
 
