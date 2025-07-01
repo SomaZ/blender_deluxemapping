@@ -5979,7 +5979,7 @@ static void rna_def_bake_data(BlenderRNA *brna)
 
   prop = RNA_def_property(srna, "use_pass_color", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, nullptr, "pass_filter", R_BAKE_PASS_FILTER_COLOR);
-  RNA_def_property_ui_text(prop, "Color", "Color the pass");
+  RNA_def_property_ui_text(prop, "Deluxemap", "Compute average light incident vector");
   RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, nullptr);
 
   prop = RNA_def_property(srna, "use_pass_diffuse", PROP_BOOLEAN, PROP_NONE);
