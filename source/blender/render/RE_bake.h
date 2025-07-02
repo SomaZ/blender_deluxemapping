@@ -141,6 +141,12 @@ void RE_bake_normal_world_to_world(const BakePixel pixel_array[],
 
 void RE_bake_ibuf_clear(struct Image *image, bool is_tangent);
 
+void RE_denoise_bake(const int width,
+  const int height,
+  int depth,
+  bool is_hdr,
+  float result[]);
+
 #ifdef __cplusplus
 }
 #endif

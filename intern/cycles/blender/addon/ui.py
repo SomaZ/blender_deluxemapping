@@ -2124,6 +2124,8 @@ class CYCLES_RENDER_PT_bake_output(CyclesButtonsPanel, Panel):
             layout.prop(cbk, "target")
             if cbk.target == 'IMAGE_TEXTURES':
                 layout.prop(cbk, "use_clear", text="Clear Image")
+                
+        layout.prop(cbk, "use_bake_denoise_pp", text="Use OIDN denoise post process")
 
 
 class CYCLES_RENDER_PT_bake_output_margin(CyclesButtonsPanel, Panel):

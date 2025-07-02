@@ -5943,6 +5943,11 @@ static void rna_def_bake_data(BlenderRNA *brna)
   RNA_def_property_ui_text(prop, "Clear", "Clear Images before baking (internal only)");
   RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, nullptr);
 
+  prop = RNA_def_property(srna, "use_bake_denoise_pp", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, nullptr, "flag", R_BAKE_USE_DENOISE_PP);
+  RNA_def_property_ui_text(prop, "Denoise PP", "Use post process OIDN denoise");
+  RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, nullptr);
+
   prop = RNA_def_property(srna, "use_split_materials", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, nullptr, "flag", R_BAKE_SPLIT_MAT);
   RNA_def_property_ui_text(

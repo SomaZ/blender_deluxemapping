@@ -87,6 +87,8 @@ struct BakeAPIRender {
   int margin;
   eBakeMarginType margin_type;
 
+  bool use_bake_denoise_pp;
+
   bool is_clear;
   bool is_selected_to_active;
   bool is_cage;
@@ -1808,6 +1810,14 @@ static int bake(const BakeAPIRender *bkr,
     }
   }
 
+  if (bkr->target != R_BAKE_TARGET_VERTEX_COLORS && bkr->use_bake_denoise_pp) {
+    size_t offset = 0;
+    for (int j = 0; j < targets.images_num; j++) {
+      RE_denoise_bake(targets.images[j].width, targets.images[j].height, targets.channels_num, true, targets.result+offset);
+      offset += targets.images[j].width * targets.images[j].height * targets.channels_num;
+    }
+  }
+
   if (!ok) {
     BKE_reportf(reports, RPT_ERROR, "Problem baking object \"%s\"", ob_low->id.name + 2);
     op_result = OPERATOR_CANCELLED;
@@ -1880,6 +1890,8 @@ static void bake_init_api_data(wmOperator *op, bContext *C, BakeAPIRender *bkr)
   bkr->pass_filter = RNA_enum_get(op->ptr, "pass_filter");
   bkr->margin = RNA_int_get(op->ptr, "margin");
   bkr->margin_type = eBakeMarginType(RNA_enum_get(op->ptr, "margin_type"));
+
+  bkr->use_bake_denoise_pp = RNA_boolean_get(op->ptr, "use_bake_denoise_pp");
 
   bkr->save_mode = (eBakeSaveMode)RNA_enum_get(op->ptr, "save_mode");
   bkr->target = (eBakeTarget)RNA_enum_get(op->ptr, "target");
@@ -2171,6 +2183,11 @@ static void bake_set_props(wmOperator *op, Scene *scene)
   if (!RNA_property_is_set(op->ptr, prop)) {
     RNA_property_enum_set(op->ptr, prop, bake->pass_filter);
   }
+
+  prop = RNA_struct_find_property(op->ptr, "use_bake_denoise_pp");
+  if (!RNA_property_is_set(op->ptr, prop)) {
+    RNA_property_boolean_set(op->ptr, prop, (bake->flag & R_BAKE_USE_DENOISE_PP) != 0);
+  }
 }
 
 static int bake_invoke(bContext *C, wmOperator *op, const wmEvent * /*event*/)
@@ -2369,6 +2386,11 @@ void OBJECT_OT_bake(wmOperatorType *ot)
                   false,
                   "Clear",
                   "Clear images before baking (only for internal saving)");
+  RNA_def_boolean(ot->srna,
+                  "use_bake_denoise_pp",
+                  false,
+                  "Denoise PP",
+                  "Use OIDN denoise post process");
   RNA_def_boolean(ot->srna, "use_cage", false, "Cage", "Cast rays to active object from a cage");
   RNA_def_boolean(
       ot->srna,

@@ -79,6 +79,10 @@
 /* local include */
 #include "zbuf.h"
 
+#ifdef WITH_OPENIMAGEDENOISE
+#  include <OpenImageDenoise/oidn.hpp>
+#endif
+
 struct BakeDataZSpan {
   BakePixel *pixel_array;
   int primitive_id;
@@ -1049,6 +1053,86 @@ void RE_bake_ibuf_clear(Image *image, const bool is_tangent)
   }
 
   BKE_image_release_ibuf(image, ibuf, lock);
+}
+
+int BLI_cpu_support_sse42(void)
+{
+#if !defined(_M_ARM64)
+  int result[4], num;
+  __cpuid(result, 0);
+  num = result[0];
+
+  if (num >= 1) {
+    __cpuid(result, 0x00000001);
+    return (result[2] & ((int)1 << 20)) != 0;
+}
+#endif
+  return 0;
+}
+
+static bool is_oidn_supported()
+{
+#ifdef WITH_OPENIMAGEDENOISE
+#  if defined(__APPLE__)
+  /* Always supported through Accelerate framework BNNS. */
+  return true;
+#  elif defined(__aarch64__) || defined(_M_ARM64)
+  /* OIDN 2.2 and up supports ARM64 on Windows and Linux. */
+  return true;
+#  else
+  return BLI_cpu_support_sse42();
+#  endif
+#else
+  return false;
+#endif
+}
+
+
+void RE_denoise_bake(const int width,
+                     const int height,
+                     int depth,
+                     bool is_hdr,
+                     float result[]) {
+#ifndef WITH_OPENIMAGEDENOISE
+  return;
+#else
+  if (!is_oidn_supported()) {
+    return;
+  }
+
+  oidn::DeviceRef device = oidn::newDevice(oidn::DeviceType::CPU);
+  device.set("setAffinity", false);
+  device.commit();
+
+  size_t pixels_num = width * height;
+
+  const int pixel_stride = sizeof(float) * depth;
+
+  float *input_color = static_cast<float *>(MEM_callocN(sizeof(float) * pixels_num * depth, "temp_noisy_image_oidn_bake_pp"));
+  float *output_color = result;
+  memcpy(input_color, output_color, sizeof(float) * pixels_num * depth);
+  
+  oidn::FilterRef filter = device.newFilter("RT");
+  filter.setImage("color", input_color, oidn::Format::Float3, width, height, 0, pixel_stride);
+  filter.setImage("output", output_color, oidn::Format::Float3, width, height, 0, pixel_stride);
+  filter.set("hdr", is_hdr);
+  filter.set("cleanAux", true);
+
+  filter.commit();
+  filter.execute();
+
+  if (depth == 4) {
+    for (size_t i = 0; i < pixels_num; i++) {
+      size_t offset;
+
+      offset = i * depth + 3;
+      const float alpha = input_color[offset];
+      output_color[offset] = alpha;
+    }
+  }
+  
+  MEM_freeN(input_color);
+#endif
 }
 
 /* ************************************************************* */

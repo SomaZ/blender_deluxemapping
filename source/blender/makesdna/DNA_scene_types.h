@@ -2288,6 +2288,7 @@ enum {
   R_BAKE_CAGE = 1 << 8,
   R_BAKE_SPLIT_MAT = 1 << 9,
   R_BAKE_AUTO_NAME = 1 << 10,
+  R_BAKE_USE_DENOISE_PP = 1 << 11,
 };
 
 /** #RenderData::bake_normal_space */
