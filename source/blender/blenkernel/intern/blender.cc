@@ -123,7 +123,8 @@ static void blender_version_init()
     BLI_assert_msg(0, "Invalid Blender version cycle");
   }
 
-  const char *version_suffix = BKE_blender_version_is_lts() ? " LTS" : "";
+  const char *version_suffix = " Deluxemapping";
+  version_cycle_compact = " DLX";
 
   SNPRINTF(blender_version_string,
            "%d.%01d.%d%s%s",
