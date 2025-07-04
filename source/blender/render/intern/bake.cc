@@ -1112,6 +1112,45 @@ void RE_denoise_bake(const int width,
   float *output_color = result;
   memcpy(input_color, output_color, sizeof(float) * pixels_num * depth);
   
+  if (depth == 4) {
+    for (size_t i = 0; i < pixels_num; i++) {
+      size_t offset;
+
+      offset = i * depth;
+      if (output_color[offset + 3] > 0.1f) {
+        continue;
+      }
+
+      int steps[4] = {
+        width + 1,
+        width - 1,
+        -width + 1,
+        -width - 1
+      };
+
+      int samples = 0;
+
+      for (int step = 0; step < 4; step++) {
+        if (i + steps[step] < 0 || i + steps[step] >= pixels_num)
+          continue;
+        size_t c_offset = (i + steps[step]) * depth;
+        if (output_color[c_offset + 3] > 0.1f)
+        {
+          for (int j = 0; j < 3; j++) {
+            input_color[offset + j] += output_color[c_offset + j];
+          }
+          samples++;
+        }
+      }
+      if (samples > 0)
+      {
+        for (int j = 0; j < 3; j++) {
+          input_color[offset + j] /= (float)samples;
+        }
+      }
+    }
+  }
+
   oidn::FilterRef filter = device.newFilter("RT");
   filter.setImage("color", input_color, oidn::Format::Float3, width, height, 0, pixel_stride);
   filter.setImage("output", output_color, oidn::Format::Float3, width, height, 0, pixel_stride);
