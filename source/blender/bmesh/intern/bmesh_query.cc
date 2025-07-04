@@ -2140,7 +2140,7 @@ int BM_mesh_calc_face_groups(BMesh *bm,
 
   STACK_INIT(group_array, bm->totface);
 
-  BLI_assert(((htype_step & ~(BM_VERT | BM_EDGE)) == 0) && (htype_step != 0));
+  BLI_assert(((htype_step & ~(BM_VERT | BM_EDGE | BM_BSP_VERT)) == 0) && (htype_step != 0));
 
   /* init the array */
   BM_ITER_MESH_INDEX (f, &iter, bm, BM_FACES_OF_MESH, i) {
@@ -2162,6 +2162,15 @@ int BM_mesh_calc_face_groups(BMesh *bm,
 
   f_next = static_cast<BMFace *>(BM_iter_new(&iter, bm, BM_FACES_OF_MESH, nullptr));
 
+  const char *layer_name = "BSP_VERT_INDEX";
+  int cd_prop_int_idx = CustomData_get_named_layer_index(&bm->vdata, CD_PROP_INT32, layer_name);
+  bool is_bsp_mesh = cd_prop_int_idx != -1 && htype_step & BM_BSP_VERT;
+  int offset = -1;
+  if (is_bsp_mesh) {
+    cd_prop_int_idx -= CustomData_get_layer_index(&bm->vdata, CD_PROP_INT32);
+    offset = CustomData_get_n_offset(
+      &bm->vdata, CD_PROP_INT32, cd_prop_int_idx);
+  }
   while (tot_touch != tot_faces) {
     int *group_item;
     bool ok = false;
@@ -2201,6 +2210,32 @@ int BM_mesh_calc_face_groups(BMesh *bm,
       tot_touch++;
       group_item[1]++;
       /* done */
+
+      if (is_bsp_mesh) {
+        BMIter viter;
+        BMIter oviter;
+        BMIter oaviter;
+        BMVert *o;
+        BMVert *o_v;
+        BMFace *f_current = f;
+        BMFace* f_other;
+        BM_ITER_ELEM(o_v, &oviter, f_current, BM_VERTS_OF_FACE) {
+          f_other = static_cast<BMFace*>(BM_iter_new(&viter, bm, BM_FACES_OF_MESH, nullptr));
+          for (; f_other; f_other = static_cast<BMFace*>(BM_iter_step(&viter))) {
+            if (BM_elem_flag_test(f_other, BM_ELEM_TAG) != false)
+              continue;
+            BM_ITER_ELEM(o, &oaviter, f_other, BM_VERTS_OF_FACE) {
+              if (BM_ELEM_CD_GET_INT(o_v, cd_prop_int_idx) == BM_ELEM_CD_GET_INT(o, cd_prop_int_idx))
+              {
+                BM_elem_flag_enable(f_other, BM_ELEM_TAG);
+                STACK_PUSH(stack, f_other);
+                break;
+              }
+            }
+          }
+        }
+        continue;
+      }
 
       if (htype_step & BM_EDGE) {
         /* search for other faces */

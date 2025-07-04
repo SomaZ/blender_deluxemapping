@@ -145,7 +145,7 @@ int bm_mesh_calc_uv_islands(const Scene *scene,
                                                  bm_loop_uv_shared_edge_check,
                                                  &user_data,
                                                  BM_ELEM_TAG,
-                                                 BM_EDGE);
+                                                 BM_EDGE | BM_BSP_VERT);
 
   for (int i = 0; i < group_len; i++) {
     const int faces_start = group_index[i][0];

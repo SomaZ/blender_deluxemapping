@@ -392,6 +392,7 @@ enum {
   BM_EDGE = 2,
   BM_LOOP = 4,
   BM_FACE = 8,
+  BM_BSP_VERT = 16,
 };
 
 struct BMLoopNorEditData {
