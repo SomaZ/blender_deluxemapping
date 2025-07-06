@@ -1813,6 +1813,9 @@ static int bake(const BakeAPIRender *bkr,
   if (bkr->target != R_BAKE_TARGET_VERTEX_COLORS && bkr->use_bake_denoise_pp) {
     size_t offset = 0;
     for (int j = 0; j < targets.images_num; j++) {
+      const char* name = targets.images[j].image->id.name;
+      if (!strcmp(name, "IM$vertmap_bake"))
+        continue;
       RE_denoise_bake(targets.images[j].width, targets.images[j].height, targets.channels_num, true, targets.result+offset);
       offset += targets.images[j].width * targets.images[j].height * targets.channels_num;
     }
