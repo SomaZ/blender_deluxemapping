@@ -2104,7 +2104,7 @@ double BM_mesh_calc_volume(BMesh *bm, bool is_signed)
 }
 
 struct BSPUVMap{
-  uint32_t uv[2];
+  float uv[2];
   uint32_t bsp_vert_index;
 };
 
@@ -2182,7 +2182,7 @@ int BM_mesh_calc_face_groups(BMesh *bm,
   const uint32_t map_size = map_width * map_height;
   float* bsp_plane_map[4];
 
-  uint32_t* vert_uv;
+  float* vert_uv;
   uint32_t* vert_uv_index;
   uint16_t* vert_uv_count;
   BSPUVMap** uv_map_mapping;
@@ -2192,6 +2192,7 @@ int BM_mesh_calc_face_groups(BMesh *bm,
   float min_to_max_scale[2];
 
   bool debug_rings = false;
+  //bool debug_uvs = true;
 
   if (is_bsp_mesh) {
     cd_prop_int_idx -= CustomData_get_layer_index(&bm->vdata, CD_PROP_INT32);
@@ -2235,7 +2236,7 @@ int BM_mesh_calc_face_groups(BMesh *bm,
       min_to_max_scale[0] = 1.f / (max[0] - min[0]);
       min_to_max_scale[1] = 1.f / (max[1] - min[1]);
 
-      vert_uv = static_cast<uint32_t*>(MEM_mallocN(sizeof(*vert_uv) * bm->totvert * 2, __func__));
+      vert_uv = static_cast<float*>(MEM_mallocN(sizeof(*vert_uv) * bm->totvert * 2, __func__));
       memset(vert_uv, 0, sizeof(*vert_uv) * bm->totvert * 2);
       vert_uv_index = static_cast<uint32_t*>(MEM_mallocN(sizeof(*vert_uv_index) * bm->totvert, __func__));
       for (int j = 0; j < bm->totvert; j++)
@@ -2256,8 +2257,8 @@ int BM_mesh_calc_face_groups(BMesh *bm,
           int vert_index = BM_elem_index_get(c_l->v);
           float* uv = BM_ELEM_CD_GET_FLOAT_P(c_l, offsets.uv);
 
-          vert_uv[vert_index * 2] = uint32_t(floorf(uv[0] * 16384.f));
-          vert_uv[vert_index * 2 + 1] = uint32_t(floorf(uv[1] * 16384.f));
+          vert_uv[vert_index * 2] = uv[0];
+          vert_uv[vert_index * 2 + 1] = uv[1];
 
           add_v2_v2(uv, min);
           mul_v2_v2(uv, min_to_max_scale);
@@ -2310,7 +2311,7 @@ int BM_mesh_calc_face_groups(BMesh *bm,
           if (array_index > map_size)
             continue;
           for (uint16_t z = 0; z < vert_uv_count[uv_index]; z++) {
-            if (vert_uv[i * 2] == uv_map_mapping[array_index][z].uv[0] && vert_uv[i * 2 + 1] == uv_map_mapping[array_index][z].uv[1]) {
+            if (equals_v2v2(&vert_uv[i * 2], uv_map_mapping[array_index][z].uv)) {
               bsp_index_map[i] = uv_map_mapping[array_index][z].bsp_vert_index;
               break;
             }
@@ -2414,6 +2415,28 @@ int BM_mesh_calc_face_groups(BMesh *bm,
       group_item[1]++;
       /* done */
 
+      if (htype_step & BM_EDGE) {
+        /* search for other faces */
+        l_iter = l_first = BM_FACE_FIRST_LOOP(f);
+        do {
+          BMLoop *l_radial_iter = l_iter->radial_next;
+          if ((l_radial_iter != l_iter) &&
+            ((filter_fn == nullptr) || filter_fn(l_iter, user_data)))
+          {
+            do {
+              if ((filter_pair_fn == nullptr) || filter_pair_fn(l_iter, l_radial_iter, user_data))
+              {
+                BMFace *f_other = l_radial_iter->f;
+                if (BM_elem_flag_test(f_other, BM_ELEM_TAG) == false) {
+                  BM_elem_flag_enable(f_other, BM_ELEM_TAG);
+                  STACK_PUSH(stack, f_other);
+                }
+              }
+            } while ((l_radial_iter = l_radial_iter->radial_next) != l_iter);
+          }
+        } while ((l_iter = l_iter->next) != l_first);
+      }
+
       if (is_bsp_mesh) {
         /* search for other faces */
         BMEdge* c_e;
@@ -2437,28 +2460,6 @@ int BM_mesh_calc_face_groups(BMesh *bm,
           } while (c_v && c_v != l_iter->v);
         } while ((l_iter = l_iter->next) != l_first);
         continue;
-      }
-
-      if (htype_step & BM_EDGE) {
-        /* search for other faces */
-        l_iter = l_first = BM_FACE_FIRST_LOOP(f);
-        do {
-          BMLoop *l_radial_iter = l_iter->radial_next;
-          if ((l_radial_iter != l_iter) &&
-              ((filter_fn == nullptr) || filter_fn(l_iter, user_data)))
-          {
-            do {
-              if ((filter_pair_fn == nullptr) || filter_pair_fn(l_iter, l_radial_iter, user_data))
-              {
-                BMFace *f_other = l_radial_iter->f;
-                if (BM_elem_flag_test(f_other, BM_ELEM_TAG) == false) {
-                  BM_elem_flag_enable(f_other, BM_ELEM_TAG);
-                  STACK_PUSH(stack, f_other);
-                }
-              }
-            } while ((l_radial_iter = l_radial_iter->radial_next) != l_iter);
-          }
-        } while ((l_iter = l_iter->next) != l_first);
       }
 
       if (htype_step & BM_VERT) {
