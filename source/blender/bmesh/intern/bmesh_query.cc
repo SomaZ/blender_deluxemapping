@@ -2103,6 +2103,11 @@ double BM_mesh_calc_volume(BMesh *bm, bool is_signed)
   return vol;
 }
 
+struct BSPUVMap{
+  uint32_t uv[2];
+  uint32_t bsp_vert_index;
+};
+
 int BM_mesh_calc_face_groups(BMesh *bm,
                              int *r_groups_array,
                              int (**r_group_index)[2],
@@ -2166,10 +2171,208 @@ int BM_mesh_calc_face_groups(BMesh *bm,
   int cd_prop_int_idx = CustomData_get_named_layer_index(&bm->vdata, CD_PROP_INT32, layer_name);
   bool is_bsp_mesh = cd_prop_int_idx != -1 && htype_step & BM_BSP_VERT;
   int offset = -1;
+  BMVert** bsp_vert_map;
+  BMVert** bsp_vert_map_temp;
+
+  bool* bsp_vert_map_first;
+  int* bsp_index_map;
+
+  const uint32_t map_width = 512;
+  const uint32_t map_height = 512;
+  const uint32_t map_size = map_width * map_height;
+  float* bsp_plane_map[4];
+
+  uint32_t* vert_uv;
+  uint32_t* vert_uv_index;
+  uint16_t* vert_uv_count;
+  BSPUVMap** uv_map_mapping;
+  int number_of_arrays = 0;
+  const BMUVOffsets offsets = BM_uv_map_get_offsets(bm);
+  float min[2], max[2];
+  float min_to_max_scale[2];
+
+  bool debug_rings = false;
+
   if (is_bsp_mesh) {
     cd_prop_int_idx -= CustomData_get_layer_index(&bm->vdata, CD_PROP_INT32);
     offset = CustomData_get_n_offset(
       &bm->vdata, CD_PROP_INT32, cd_prop_int_idx);
+
+    bsp_vert_map = static_cast<BMVert**>(MEM_mallocN(sizeof(*bsp_vert_map) * bm->totvert, __func__));
+    bsp_vert_map_first = static_cast<bool*>(MEM_mallocN(sizeof(*bsp_vert_map_first) * bm->totvert, __func__));
+    bsp_index_map = static_cast<int*>(MEM_mallocN(sizeof(*bsp_index_map) * bm->totvert, __func__));
+    for (int j = 0; j < bm->totvert; j++)
+    {
+      bsp_vert_map[j] = nullptr;
+      bsp_vert_map_first[j] = false;
+      bsp_index_map[j] = -1;
+    }
+
+    uint32_t max_vert_index = 0;
+    // Get vertices inline and write index_map
+    {
+      BMIter viter;
+      BMVert* c_v;
+      BM_ITER_MESH_INDEX(c_v, &viter, bm, BM_VERTS_OF_MESH, i) {
+        BM_elem_index_set(c_v, i); /* set_inline */
+        bsp_index_map[i] = BM_ELEM_CD_GET_INT(c_v, offset);
+        max_vert_index = max_ii(max_vert_index, bsp_index_map[i]);
+      }
+    }
+    bm->elem_index_dirty &= ~BM_VERT;
+    
+    // Build uv lookup tables
+    {
+      BMIter fiter;
+      BMFace* c_f;
+
+      // Get map size
+      float min[2], max[2], min_to_max_scale[2];
+      INIT_MINMAX2(min, max);
+      BM_ITER_MESH(c_f, &fiter, bm, BM_FACES_OF_MESH) {
+        BM_face_uv_minmax(c_f, min, max, offsets.uv);
+      }
+      min_to_max_scale[0] = 1.f / (max[0] - min[0]);
+      min_to_max_scale[1] = 1.f / (max[1] - min[1]);
+
+      vert_uv = static_cast<uint32_t*>(MEM_mallocN(sizeof(*vert_uv) * bm->totvert * 2, __func__));
+      memset(vert_uv, 0, sizeof(*vert_uv) * bm->totvert * 2);
+      vert_uv_index = static_cast<uint32_t*>(MEM_mallocN(sizeof(*vert_uv_index) * bm->totvert, __func__));
+      for (int j = 0; j < bm->totvert; j++)
+        vert_uv_index[j] = bm->totvert + 1;
+      vert_uv_count = static_cast<uint16_t*>(MEM_mallocN(sizeof(*vert_uv_count) * map_size, __func__));
+      memset(vert_uv_count, 0, sizeof(*vert_uv_count) * map_size);
+
+      uint32_t* uv_index_to_array = static_cast<uint32_t*>(MEM_mallocN(sizeof(*uv_index_to_array) * map_size, __func__));
+      uint32_t* array_to_uv_index = static_cast<uint32_t*>(MEM_mallocN(sizeof(*array_to_uv_index) * map_size, __func__));
+      for (int j = 0; j < map_size; j++) {
+        uv_index_to_array[j] = map_size + 1;
+        array_to_uv_index[j] = map_size + 1;
+      }
+      BM_ITER_MESH(c_f, &fiter, bm, BM_FACES_OF_MESH) {
+        BMIter liter;
+        BMLoop* c_l;
+        BM_ITER_ELEM(c_l, &liter, c_f, BM_LOOPS_OF_FACE) {
+          int vert_index = BM_elem_index_get(c_l->v);
+          float* uv = BM_ELEM_CD_GET_FLOAT_P(c_l, offsets.uv);
+
+          vert_uv[vert_index * 2] = uint32_t(floorf(uv[0] * 16384.f));
+          vert_uv[vert_index * 2 + 1] = uint32_t(floorf(uv[1] * 16384.f));
+
+          add_v2_v2(uv, min);
+          mul_v2_v2(uv, min_to_max_scale);
+          clamp_v2(uv, 0.0f, 1.0f);
+          uint32_t uv_index =
+            (floorf(uv[0] * (map_width - 1))) + ((floorf(uv[1] * (map_height-1))) * (map_width - 1));
+
+          vert_uv_index[vert_index] = uv_index;
+
+          if (vert_uv_count[uv_index] == 0) {
+            uv_index_to_array[uv_index] = number_of_arrays;
+            array_to_uv_index[number_of_arrays] = uv_index;
+            number_of_arrays++;
+          }
+          vert_uv_count[uv_index]++;
+        }
+      }
+
+      uv_map_mapping = static_cast<BSPUVMap**>(MEM_mallocN(sizeof(*uv_map_mapping) * number_of_arrays, __func__));
+      for (int j = 0; j < number_of_arrays; j++) {
+        uint32_t count = vert_uv_count[array_to_uv_index[j]];
+        uv_map_mapping[j] = static_cast<BSPUVMap*>(
+          MEM_mallocN(sizeof(BSPUVMap) * count, __func__));
+        for (int k = 0; k < count; k++) {
+          uv_map_mapping[j][k].bsp_vert_index = -1;
+        }
+      }
+
+      {
+        BMIter viter;
+        BMVert* c_v;
+        BM_ITER_MESH_INDEX(c_v, &viter, bm, BM_VERTS_OF_MESH, i) {
+          uint32_t uv_index = vert_uv_index[i];
+          uint32_t array_index = uv_index_to_array[uv_index];
+          if (array_index > map_size)
+            continue;
+          for (uint16_t u = 0; u < vert_uv_count[uv_index]; u++) {
+            if (uv_map_mapping[array_index][u].bsp_vert_index == -1) {
+              uv_map_mapping[array_index][u].bsp_vert_index = bsp_index_map[i];
+              uv_map_mapping[array_index][u].uv[0] = vert_uv[i * 2];
+              uv_map_mapping[array_index][u].uv[1] = vert_uv[i * 2 + 1];
+              break;
+            }
+          }
+        }
+
+        BM_ITER_MESH_INDEX(c_v, &viter, bm, BM_VERTS_OF_MESH, i) {
+          uint32_t uv_index = vert_uv_index[i];
+          uint32_t array_index = uv_index_to_array[uv_index];
+          if (array_index > map_size)
+            continue;
+          for (uint16_t z = 0; z < vert_uv_count[uv_index]; z++) {
+            if (vert_uv[i * 2] == uv_map_mapping[array_index][z].uv[0] && vert_uv[i * 2 + 1] == uv_map_mapping[array_index][z].uv[1]) {
+              bsp_index_map[i] = uv_map_mapping[array_index][z].bsp_vert_index;
+              break;
+            }
+          }
+        }
+      }
+      MEM_freeN(array_to_uv_index);
+      MEM_freeN(uv_index_to_array);
+      MEM_freeN(vert_uv_count);
+      MEM_freeN(vert_uv_index);
+      MEM_freeN(vert_uv);
+      for (int j = 0; j < number_of_arrays; j++)
+        MEM_freeN(uv_map_mapping[j]);
+      MEM_freeN(uv_map_mapping);
+    }
+
+    bsp_vert_map_temp = static_cast<BMVert**>(MEM_mallocN(sizeof(*bsp_vert_map_temp) * (max_vert_index + 1), __func__));
+    for (int j = 0; j < max_vert_index + 1; j++)
+      bsp_vert_map_temp[j] = nullptr;
+
+    // Build vert lookup table
+    {
+      BMIter viter;
+      BMVert* c_v;
+      BM_ITER_MESH_INDEX(c_v, &viter, bm, BM_VERTS_OF_MESH, i) {
+
+        int bsp_vert_index = bsp_index_map[i];
+
+        if (bsp_vert_index < 0)
+          continue;
+
+        if (bsp_vert_map_temp[bsp_vert_index] != nullptr) {
+          bsp_vert_map[i] = bsp_vert_map_temp[bsp_vert_index];
+        }
+        else {
+          bsp_vert_map_first[i] = true;
+        }
+        bsp_vert_map_temp[bsp_vert_index] = c_v;
+      }
+
+      // Close the ring
+      BM_ITER_MESH_INDEX(c_v, &viter, bm, BM_VERTS_OF_MESH, i) {
+        if (bsp_vert_map_first[i]) {
+          bsp_vert_map[i] = bsp_vert_map_temp[bsp_index_map[i]];
+        }
+        
+        if (debug_rings) {
+          BMVert* next_v = bsp_vert_map[i];
+          if (next_v == c_v)
+            continue;
+          printf("%i", BM_elem_index_get(c_v));
+          while (next_v != c_v) {
+            printf(" -> %i", BM_elem_index_get(next_v));
+            next_v = bsp_vert_map[BM_elem_index_get(next_v)];
+          }
+          printf(" -> %i\n", BM_elem_index_get(next_v));
+        }
+      }
+    }
+    MEM_freeN(bsp_vert_map_first);
+    MEM_freeN(bsp_index_map);
+    
   }
   while (tot_touch != tot_faces) {
     int *group_item;
@@ -2212,28 +2415,27 @@ int BM_mesh_calc_face_groups(BMesh *bm,
       /* done */
 
       if (is_bsp_mesh) {
-        BMIter viter;
-        BMIter oviter;
-        BMIter oaviter;
-        BMVert *o;
-        BMVert *o_v;
-        BMFace *f_current = f;
-        BMFace* f_other;
-        BM_ITER_ELEM(o_v, &oviter, f_current, BM_VERTS_OF_FACE) {
-          f_other = static_cast<BMFace*>(BM_iter_new(&viter, bm, BM_FACES_OF_MESH, nullptr));
-          for (; f_other; f_other = static_cast<BMFace*>(BM_iter_step(&viter))) {
-            if (BM_elem_flag_test(f_other, BM_ELEM_TAG) != false)
-              continue;
-            BM_ITER_ELEM(o, &oaviter, f_other, BM_VERTS_OF_FACE) {
-              if (BM_ELEM_CD_GET_INT(o_v, cd_prop_int_idx) == BM_ELEM_CD_GET_INT(o, cd_prop_int_idx))
-              {
-                BM_elem_flag_enable(f_other, BM_ELEM_TAG);
-                STACK_PUSH(stack, f_other);
-                break;
+        /* search for other faces */
+        BMEdge* c_e;
+        BMLoop* c_loop;
+        l_iter = l_first = BM_FACE_FIRST_LOOP(f);
+        do {
+          BMVert* c_v = l_iter->v;
+          do {
+            BMIter eter;
+            BM_ITER_ELEM(c_e, &eter, c_v, BM_EDGES_OF_VERT) {
+              BMIter cliter;
+              BM_ITER_ELEM(c_loop, &cliter, c_e, BM_LOOPS_OF_EDGE) {
+                BMFace* f_other = c_loop->f;
+                if (BM_elem_flag_test(f_other, BM_ELEM_TAG) == false) {
+                  BM_elem_flag_enable(f_other, BM_ELEM_TAG);
+                  STACK_PUSH(stack, f_other);
+                }
               }
             }
-          }
-        }
+            c_v = bsp_vert_map[BM_elem_index_get(c_v)];
+          } while (c_v && c_v != l_iter->v);
+        } while ((l_iter = l_iter->next) != l_first);
         continue;
       }
 
@@ -2284,6 +2486,10 @@ int BM_mesh_calc_face_groups(BMesh *bm,
   }
 
   MEM_freeN(stack);
+  if (is_bsp_mesh) {
+    MEM_freeN(bsp_vert_map);
+    MEM_freeN(bsp_vert_map_temp);
+  }
 
   /* reduce alloc to required size */
   if (group_index_len != group_curr) {
