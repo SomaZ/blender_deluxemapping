@@ -2106,6 +2106,8 @@ double BM_mesh_calc_volume(BMesh *bm, bool is_signed)
 struct BSPUVMap{
   float uv[2];
   uint32_t bsp_vert_index;
+  float vert_plane[4];
+  float vert_pos[3];
 };
 
 int BM_mesh_calc_face_groups(BMesh *bm,
@@ -2202,6 +2204,8 @@ int BM_mesh_calc_face_groups(BMesh *bm,
     bsp_vert_map = static_cast<BMVert**>(MEM_mallocN(sizeof(*bsp_vert_map) * bm->totvert, __func__));
     bsp_vert_map_first = static_cast<bool*>(MEM_mallocN(sizeof(*bsp_vert_map_first) * bm->totvert, __func__));
     bsp_index_map = static_cast<int*>(MEM_mallocN(sizeof(*bsp_index_map) * bm->totvert, __func__));
+    float* vert_plane = static_cast<float*>(MEM_mallocN(sizeof(float) * bm->totvert * 4, __func__));
+    float* vert_pos = static_cast<float*>(MEM_mallocN(sizeof(float) * bm->totvert * 3, __func__));
     for (int j = 0; j < bm->totvert; j++)
     {
       bsp_vert_map[j] = nullptr;
@@ -2218,6 +2222,15 @@ int BM_mesh_calc_face_groups(BMesh *bm,
         BM_elem_index_set(c_v, i); /* set_inline */
         bsp_index_map[i] = BM_ELEM_CD_GET_INT(c_v, offset);
         max_vert_index = max_ii(max_vert_index, bsp_index_map[i]);
+
+        vert_plane[i * 4] = roundf(c_v->no[0] * 1000.f);
+        vert_plane[i * 4 + 1] = roundf(c_v->no[1] * 1000.f);
+        vert_plane[i * 4 + 2] = roundf(c_v->no[2] * 1000.f);
+        vert_plane[i * 4 + 3] = roundf(dot_v3v3(c_v->no, c_v->co) * 1000.f);
+
+        vert_pos[i * 3] = roundf(c_v->co[0] * 1000.f);
+        vert_pos[i * 3 + 1] = roundf(c_v->co[1] * 1000.f);
+        vert_pos[i * 3 + 2] = roundf(c_v->co[2] * 1000.f);
       }
     }
     bm->elem_index_dirty &= ~BM_VERT;
@@ -2300,6 +2313,8 @@ int BM_mesh_calc_face_groups(BMesh *bm,
               uv_map_mapping[array_index][u].bsp_vert_index = bsp_index_map[i];
               uv_map_mapping[array_index][u].uv[0] = vert_uv[i * 2];
               uv_map_mapping[array_index][u].uv[1] = vert_uv[i * 2 + 1];
+              memcpy(uv_map_mapping[array_index][u].vert_plane, &vert_plane[i * 4], sizeof(float) * 4);
+              memcpy(uv_map_mapping[array_index][u].vert_pos, &vert_pos[i * 3], sizeof(float) * 3);
               break;
             }
           }
@@ -2311,7 +2326,13 @@ int BM_mesh_calc_face_groups(BMesh *bm,
           if (array_index > map_size)
             continue;
           for (uint16_t z = 0; z < vert_uv_count[uv_index]; z++) {
-            if (equals_v2v2(&vert_uv[i * 2], uv_map_mapping[array_index][z].uv)) {
+
+            if (equals_v2v2(
+                  &vert_uv[i * 2], uv_map_mapping[array_index][z].uv) &&
+                equals_v4v4(
+                  &vert_plane[i * 4], uv_map_mapping[array_index][z].vert_plane) &&
+                equals_v3v3(
+                  &vert_pos[i * 3], uv_map_mapping[array_index][z].vert_pos)) {
               bsp_index_map[i] = uv_map_mapping[array_index][z].bsp_vert_index;
               break;
             }
@@ -2323,6 +2344,8 @@ int BM_mesh_calc_face_groups(BMesh *bm,
       MEM_freeN(vert_uv_count);
       MEM_freeN(vert_uv_index);
       MEM_freeN(vert_uv);
+      MEM_freeN(vert_plane);
+      MEM_freeN(vert_pos);
       for (int j = 0; j < number_of_arrays; j++)
         MEM_freeN(uv_map_mapping[j]);
       MEM_freeN(uv_map_mapping);
