@@ -2268,7 +2268,8 @@ int BM_mesh_calc_face_groups(BMesh *bm,
         BMLoop* c_l;
         BM_ITER_ELEM(c_l, &liter, c_f, BM_LOOPS_OF_FACE) {
           int vert_index = BM_elem_index_get(c_l->v);
-          float* uv = BM_ELEM_CD_GET_FLOAT_P(c_l, offsets.uv);
+          float uv[2];
+          memcpy(uv, BM_ELEM_CD_GET_FLOAT_P(c_l, offsets.uv), sizeof(float)*2);
 
           vert_uv[vert_index * 2] = uv[0];
           vert_uv[vert_index * 2 + 1] = uv[1];
