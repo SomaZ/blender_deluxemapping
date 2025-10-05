@@ -1055,6 +1055,25 @@ void RE_bake_ibuf_clear(Image *image, const bool is_tangent)
   BKE_image_release_ibuf(image, ibuf, lock);
 }
 
+/* The code below is duplicated from system.c from bf_blenlib. This is on purpose, since bf_blenlib
+ * may be build with CPU flags that are not available on the current cpu so we can't link it. */
+
+#if !defined(_WIN32)
+static void __cpuid(
+    /* Cannot be const, because it is modified below.
+     * NOLINTNEXTLINE: readability-non-const-parameter. */
+    int data[4],
+    int selector)
+{
+#  if defined(__x86_64__)
+  asm("cpuid" : "=a"(data[0]), "=b"(data[1]), "=c"(data[2]), "=d"(data[3]) : "a"(selector));
+#  else
+  (void)selector;
+  data[0] = data[1] = data[2] = data[3] = 0;
+#  endif
+}
+#endif
+
 int BLI_cpu_support_sse42(void)
 {
 #if !defined(_M_ARM64)
