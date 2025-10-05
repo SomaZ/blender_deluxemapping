@@ -887,7 +887,7 @@ if(WITH_CYCLES_DEVICE_OPTIX AND WITH_CYCLES_CUDA_BINARIES)
       COMMAND
         ${CUDA_NVCC_EXECUTABLE}
         --ptx
-        -arch=sm_50
+        -arch=sm_75
         ${cuda_flags}
         ${input}
       WORKING_DIRECTORY

@@ -12,6 +12,9 @@
 
 typedef unsigned long ulong;
 
+int TIFFFaxBlackCodes;
+int TIFFFaxWhiteCodes;
+
 #ifdef BUILD_DATE
 
 extern char build_date[];
